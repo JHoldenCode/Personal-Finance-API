@@ -1,9 +1,0 @@
-{
-    "holdings": [
-        {
-            "ticker": "APPL",
-            "price": 100.50,
-            "cost_basis": 89.25
-        }
-    ]
-}

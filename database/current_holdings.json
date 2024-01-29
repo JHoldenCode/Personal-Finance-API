@@ -1,0 +1,9 @@
+{
+    "holdings": {
+        "MSFT": {
+            "price": 23.6,
+            "shares": 35.7,
+            "cost_basis": 12.22
+        }
+    }
+}
