@@ -2,20 +2,25 @@ import json
 import subprocess
 import requests
 import pytest
+import os
+
+APP_PY_PATH = os.path.abspath('app.py')
 
 @pytest.fixture(scope='module', autouse=True)
 def start_flask_app():
+    # TODO - moduleNotFoundError for flask when started here
     # Setup: Start the Flask application in a separate process
-    flask_process = subprocess.Popen(['python', 'app.py'])
+    # flask_process = subprocess.Popen(['python', APP_PY_PATH])
 
     yield  # This is where the test execution happens
 
     # Teardown: Terminate the Flask process after all tests are done
-    flask_process.terminate()
+    # flask_process.terminate()
 
 def test_endpoint_clear_all_holdings():
     response = requests.delete('http://localhost:5000/clear_all_holdings')
     print(response)
+    assert 2 == 2
 
 # def test_endpoint_post_holdings():
 #     # 

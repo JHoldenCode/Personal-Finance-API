@@ -61,12 +61,45 @@ def clear_all_holdings():
 
     return "Successfully cleared all holdings from database.", 200
 
+@app.route('/holdings', methods=['GET'])
+def get_holdings_info():
+    current_holdings_json = {}
 
-# @app.route('/TODO1', methods=['GET'])
-def generate_report():
-    return jsonify({
-        "TODO": "TODO",
-    })
+    with open(DB_FILE_PATH, 'r') as db:
+        current_holdings_json = json.load(db)
+
+    current_holdings = current_holdings_json['holdings']
+    total_equity = 0
+    total_dollar_gain = 0
+    for holding in current_holdings:
+        holding_info = current_holdings[holding]
+
+        # access holding info
+        price = holding_info['price']
+        shares = holding_info['shares']
+        cost_basis = holding_info['cost_basis']
+
+        # add new holding info fields
+        equity = round(price * shares, 3)
+        dollar_gain = round((price - cost_basis) * shares, 3)
+        holding_info['equity'] = equity
+        holding_info['dollar_gain'] = dollar_gain
+        holding_info['percent_gain'] = round((price - cost_basis) / cost_basis * 100, 3)
+
+        # increment sums of equity and dollars gained
+        total_equity += equity
+        total_dollar_gain += dollar_gain
+    
+    # append separate JSON object of sums
+    total_percent_gain = round(total_equity / (total_equity - total_dollar_gain) - 1, 3)
+    current_holdings_json['compiled_stats'] = {
+        'total_equity': total_equity,
+        'total_dollar_gain': total_dollar_gain,
+        'total_percent_gain': total_percent_gain
+    }
+
+    return current_holdings_json, 200
+
 
 if __name__ == '__main__':
     app.run(debug=True)
