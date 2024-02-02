@@ -1,5 +1,8 @@
 from flask import Flask, request, jsonify
 import json
+import requests
+import os
+from dotenv import load_dotenv
 
 # example curl request
 # curl -X POST http://127.0.0.1:5000/holdings -H "Content-Type: application/json" -d @input_new_holdings.json
@@ -7,7 +10,11 @@ app = Flask(__name__)
 DB_FILE_PATH = 'database/current_holdings.json'
 
 @app.route('/holdings', methods=['POST'])
-def post_holdings():
+def post_holdings_without_price():
+    # TODO - check whether ticker is valid
+    load_dotenv()
+    polygon_api_key = os.getenv('POLYGON_API_KEY')
+
     # access holdings submitted to endpoint
     new_holdings = request.get_json()['holdings']
 
@@ -20,8 +27,31 @@ def post_holdings():
         # move cursor to top so file write begins at correct spot
         # do not need to delete all contents because new file will be at
         # least as long as old file
+        # TODO - ^^^ might be wrong with addition of API price fetching
         db.seek(0)
+
+        # setup query to Polygon stock API, i.e.
+        # https://api.polygon.io/v2/aggs/ticker/{stock_ticker}/prev?apiKey=
+        api_endpoint = 'https://api.polygon.io/v2/aggs/ticker/'
+        submit_api_key = 'prev?apiKey=' + polygon_api_key
+
         for new_holding in new_holdings:
+            nh = new_holdings[new_holding]
+            price = None
+
+            # if new holding does not contain price, fetch stock price
+            if 'price' not in nh:
+                endpoint = api_endpoint + new_holding + '/' + submit_api_key
+                response = requests.get(endpoint)
+                data = response.json()
+                # closing price from previous day
+                price = data['results'][0]['c']
+
+                # if the fetched price is invalid, do not modify db according to this holding
+                if not price:
+                    continue
+                nh['price'] = round(price, 3)
+
             # update current holding with new data
             if new_holding in current_holdings:
                 ch = current_holdings[new_holding]
@@ -35,7 +65,7 @@ def post_holdings():
         # Write the updated data back to the file
         json.dump(current_holdings_json, db, indent=4)
 
-    return "Successfully updated holdings database.", 200
+    return 'Successfully updated holdings database with new holdings.', 200
 
 @app.route('/holdings', methods=['DELETE'])
 def delete_holdings():
@@ -55,7 +85,7 @@ def delete_holdings():
 
     return "Successfully deleted from holdings database.", 200
 
-@app.route('/clear_all_holdings', methods=['DELETE'])
+@app.route('/holdings/clear_all', methods=['DELETE'])
 def clear_all_holdings():
     modified_db = { 'holdings': {} }
     with open(DB_FILE_PATH, 'w') as db:

@@ -21,7 +21,7 @@ def start_flask_app():
 def test_endpoint_clear_all_holdings():
     # TODO - run tests on separate file, figure out how to pass args to endpoints
     # reset database to empty default
-    response = requests.delete('http://localhost:5000/clear_all_holdings')
+    response = requests.delete('http://localhost:5000/holdings/clear_all')
     assert response.status_code == 200
 
     # verify database is now empty
@@ -31,8 +31,9 @@ def test_endpoint_clear_all_holdings():
     assert data == testing_objects['clear_all_holdings']
 
 def test_endpoint_post_holdings():
+    # TODO - add tests without price
     # reset database to empty default
-    response = requests.delete('http://localhost:5000/clear_all_holdings')
+    response = requests.delete('http://localhost:5000/holdings/clear_all')
     assert response.status_code == 200
 
     # post new data to empty db and assert get holdings report is correct
@@ -54,7 +55,7 @@ def test_endpoint_post_holdings():
 
 def test_endpoint_delete_holdings():
     # reset database to empty default
-    response = requests.delete('http://localhost:5000/clear_all_holdings')
+    response = requests.delete('http://localhost:5000/holdings/clear_all')
     assert response.status_code == 200
 
     # try deleting from empty database
