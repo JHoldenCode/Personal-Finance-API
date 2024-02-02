@@ -1,14 +1,14 @@
 {
     "holdings": {
-        "MSFT": {
-            "price": 23.6,
-            "shares": 35.7,
-            "cost_basis": 12.22
+        "AAPL": {
+            "price": 25.6,
+            "shares": 5.5,
+            "cost_basis": 23.7
         },
         "SNAP": {
-            "price": 123,
-            "shares": 345,
-            "cost_basis": 188
+            "price": 15,
+            "shares": 4.2,
+            "cost_basis": 22.6
         }
     }
 }

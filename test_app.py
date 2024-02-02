@@ -3,6 +3,7 @@ import subprocess
 import requests
 import pytest
 import os
+from testing_json_objects import testing_objects
 
 APP_PY_PATH = os.path.abspath('app.py')
 
@@ -18,22 +19,67 @@ def start_flask_app():
     # flask_process.terminate()
 
 def test_endpoint_clear_all_holdings():
+    # TODO - run tests on separate file, figure out how to pass args to endpoints
+    # reset database to empty default
     response = requests.delete('http://localhost:5000/clear_all_holdings')
-    print(response)
-    assert 2 == 2
+    assert response.status_code == 200
 
-# def test_endpoint_post_holdings():
-#     # 
+    # verify database is now empty
+    response = requests.get('http://localhost:5000/holdings')
+    assert response.status_code == 200
+    data = response.json()
+    assert data == testing_objects['clear_all_holdings']
 
-#     response = requests.get('http://localhost:5000/endpoint_one')
-#     assert response.status_code == 200
-#     data = response.json()
-#     # Add assertions to verify the correctness of the returned data
+def test_endpoint_post_holdings():
+    # reset database to empty default
+    response = requests.delete('http://localhost:5000/clear_all_holdings')
+    assert response.status_code == 200
 
-# def test_endpoint_two():
-#     # Test the second endpoint
-#     payload = {'key': 'value'}
-#     response = requests.post('http://localhost:5000/endpoint_two', json=payload)
-#     assert response.status_code == 200
-#     data = response.json()
-#     # Add assertions to verify the correctness of the returned data
+    # post new data to empty db and assert get holdings report is correct
+    response = requests.post('http://localhost:5000/holdings', json=testing_objects['post_holdings']['first_post'])
+    assert response.status_code == 200
+    response = requests.get('http://localhost:5000/holdings')
+    assert response.status_code == 200
+    data = response.json()
+    # TODO - verify that this is accurate
+    assert data == testing_objects['post_holdings']['first_expected']
+
+    # post new stock, update stock, one stock same
+    response = requests.post('http://localhost:5000/holdings', json=testing_objects['post_holdings']['second_post'])
+    assert response.status_code == 200
+    response = requests.get('http://localhost:5000/holdings')
+    assert response.status_code == 200
+    data = response.json()
+    assert data == testing_objects['post_holdings']['second_expected']
+
+def test_endpoint_delete_holdings():
+    # reset database to empty default
+    response = requests.delete('http://localhost:5000/clear_all_holdings')
+    assert response.status_code == 200
+
+    # try deleting from empty database
+    response = requests.delete('http://localhost:5000/holdings', json=testing_objects['delete_holdings']['first_delete'])
+    assert response.status_code == 200
+    response = requests.get('http://localhost:5000/holdings')
+    assert response.status_code == 200
+    data = response.json()
+    # reuse testing object since it should be completely empty
+    assert data == testing_objects['clear_all_holdings']
+
+    # insert some data and try deleting stocks in database and stocks not
+    response = requests.post('http://localhost:5000/holdings', json=testing_objects['post_holdings']['first_post'])
+    assert response.status_code == 200
+    response = requests.delete('http://localhost:5000/holdings', json=testing_objects['delete_holdings']['second_delete'])
+    assert response.status_code == 200
+    response = requests.get('http://localhost:5000/holdings')
+    assert response.status_code == 200
+    data = response.json()
+    assert data == testing_objects['delete_holdings']['delete_expected']
+
+    # send a delete request with nothing in delete input array
+    response = requests.delete('http://localhost:5000/holdings', json=testing_objects['delete_holdings']['third_delete'])
+    assert response.status_code == 200
+    response = requests.get('http://localhost:5000/holdings')
+    assert response.status_code == 200
+    data = response.json()
+    assert data == testing_objects['delete_holdings']['delete_expected']
