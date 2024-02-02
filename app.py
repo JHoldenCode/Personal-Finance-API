@@ -55,7 +55,7 @@ def delete_holdings():
 
     return "Successfully deleted from holdings database.", 200
 
-@app.route('/clear_all_holdings', methods=['DELETE'])
+@app.route('/holdings/clear_all', methods=['DELETE'])
 def clear_all_holdings():
     modified_db = { 'holdings': {} }
     with open(DB_FILE_PATH, 'w') as db:
