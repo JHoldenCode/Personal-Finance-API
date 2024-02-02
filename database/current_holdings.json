@@ -5,11 +5,6 @@
             "shares": 5.5,
             "cost_basis": 23.7
         },
-        "MSFT": {
-            "price": 58.95,
-            "shares": 12.33,
-            "cost_basis": 49.42
-        },
         "SNAP": {
             "price": 15,
             "shares": 4.2,

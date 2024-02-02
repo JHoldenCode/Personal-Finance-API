@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
 import json
 
+# example curl request
+# curl -X POST http://127.0.0.1:5000/holdings -H "Content-Type: application/json" -d @input_new_holdings.json
 app = Flask(__name__)
 DB_FILE_PATH = 'database/current_holdings.json'
 
@@ -91,6 +93,7 @@ def get_holdings_info():
         total_dollar_gain += dollar_gain
     
     # append separate JSON object of sums
+    total_dollar_gain = round(total_dollar_gain, 3)
     principal = total_equity - total_dollar_gain
     total_percent_gain = round(total_equity / principal - 1, 3) if principal != 0 else 0
     current_holdings_json['compiled_stats'] = {

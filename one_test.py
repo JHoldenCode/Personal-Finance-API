@@ -1,3 +1,0 @@
-from testing_json_objects import testing_json_objects
-
-print(testing_objects)
