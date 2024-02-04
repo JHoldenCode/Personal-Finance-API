@@ -10,7 +10,7 @@ app = Flask(__name__)
 DB_FILE_PATH = '../../databases/holdings/current_holdings.json'
 
 @app.route('/holdings', methods=['POST'])
-def post_holdings_without_price():
+def post_holdings():
     # TODO - check whether ticker is valid
     load_dotenv()
     polygon_api_key = os.getenv('POLYGON_API_KEY')
