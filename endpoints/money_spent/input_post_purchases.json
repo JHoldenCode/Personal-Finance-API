@@ -1,20 +1,20 @@
 {
     "purchases": {
         "11/17/2020": [
-            [95, "car_insurance", "necessity"],
-            [33.56, "sweatshirt", "discretionary"],
-            [325.99, "steak dinner", "food"]
+            { "amount": 95, "item": "car_insurance", "category": "necessity"},
+            { "amount": 33.56, "item": "sweatshirt", "category": "discretionary"},
+            {"amount": 325.99, "item": "steak dinner", "category": "food"}
         ],
         "11/19/2020": [
-            [1.56, "sales tax", "necessity"],
-            [68.00, "billl burr show", "entertainment"]
+            {"amount": 1.56, "item": "sales tax", "category": "necessity"},
+            {"amount": 68.00, "item": "bill burr show", "category": "entertainment"}
         ],
         "1/3/2023": [
-            [20, "haircut", "necessity"],
-            [26, "bww", "food"]
+            {"amount": 20, "item": "haircut", "category": "necessity"},
+            {"amount": 26, "item": "bww", "category": "food"}
         ],
         "1/5/2023": [
-            [0.01, "charity", "discretionary"]
+            {"amount": 0.01, "item": "charity", "category": "discretionary"}
         ]
     }
 }
