@@ -45,6 +45,23 @@ def sum_purchases_on_date(summation_dict, purchases_on_date):
         amount = purchase_obj['amount']
         summation_dict[category] += amount
 
+def delete_purchases_from_date(current_purchases, date, indices_to_delete):
+    # try to find date obj in current purchases json
+    month, day, year = date.split('/')
+    purchases_on_date = {}
+    try:
+        purchases_on_date = current_purchases[year][month][date]
+    except KeyError:
+        return
+    
+    modified_purchases_on_date = []
+    for i, purchase in enumerate(purchases_on_date):
+        if i not in indices_to_delete:
+            modified_purchases_on_date.append(purchase)
+    
+    current_purchases[year][month][date] = modified_purchases_on_date
+    
+
 
 # ENDPOINTS
 
@@ -98,6 +115,7 @@ def get_all_purchases():
     
     return current_purchases_json, 200
 
+# arguments: start, end -> str in M-D-Y format
 @app.route('/money_spent/range_of_purchases', methods=['GET'])
 def get_range_of_purchases():
     NO_ARG_MSG = "Must submit a start and/or end date for this endpoint using the args 'start' and 'end'.\nUse the /money_spent/all_purchases endpoint to get all purchase records."
@@ -118,6 +136,7 @@ def get_range_of_purchases():
     except ValueError:
         return NOT_CHRONO_MSG, NOT_CHRONO_ERR_CODE
 
+    # TODO - ensure dates are in correct MM-DD-YYYY format
     start_month, start_day, start_year = start_date.split('/')
     end_month, end_day, end_year = end_date.split('/')
 
@@ -138,6 +157,7 @@ def get_range_of_purchases():
 
     return jsonify(return_json), 200
 
+# arguments: start, end -> str in M-D-Y format
 @app.route('/money_spent/category_summation', methods=['GET'])
 def get_category_summation():
     NOT_CHRONO_MSG = 'Unable to retrieve purchases in a range where start date is after end date.'
@@ -182,6 +202,33 @@ def get_category_summation():
 
     return jsonify(category_summation_dict), 200
 
+@app.route('/money_spent', methods=['DELETE'])
+def delete_purchases():
+    delete_purchases_json = request.get_json()
+    delete_purchase_dates = delete_purchases_json['purchases']
+
+    current_purchases_json = {}
+    with open(DB_FILE_PATH, 'r') as db:
+        current_purchases_json = json.load(db)
+    current_purchases = current_purchases_json['purchases']
+    
+    for date in delete_purchase_dates:
+        indices_to_delete = delete_purchase_dates[date]
+        delete_purchases_from_date(current_purchases, date, indices_to_delete)
+
+    with open(DB_FILE_PATH, 'w') as db:
+        json.dump(current_purchases_json, db, indent=4)
+
+    return 'Successfully deleted purchase records from database.', 200
+
+@app.route('/money_spent/clear_all', methods=['DELETE'])
+def clear_all_purchases():
+    new_purchases = { 'purchases': {} }
+
+    with open(DB_FILE_PATH, 'w') as db:
+        json.dump(new_purchases, db, indent=4)
+    
+    return 'Successfully deleted all purchase records from database.', 200
 
 
 if __name__ == '__main__':
