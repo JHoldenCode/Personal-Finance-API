@@ -3,7 +3,7 @@ import subprocess
 import requests
 import pytest
 import os
-from testing_json_objects import testing_objects
+from testing_holdings_json_objects import testing_objects
 
 APP_PY_PATH = os.path.abspath('app.py')
 
