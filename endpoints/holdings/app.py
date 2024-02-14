@@ -7,10 +7,10 @@ from dotenv import load_dotenv
 # example curl request
 # curl -X POST http://127.0.0.1:5000/holdings -H "Content-Type: application/json" -d @input_new_holdings.json
 app = Flask(__name__)
-DB_FILE_PATH = 'database/current_holdings.json'
+DB_FILE_PATH = '../../databases/holdings/current_holdings.json'
 
 @app.route('/holdings', methods=['POST'])
-def post_holdings_without_price():
+def post_holdings():
     # TODO - check whether ticker is valid
     load_dotenv()
     polygon_api_key = os.getenv('POLYGON_API_KEY')
