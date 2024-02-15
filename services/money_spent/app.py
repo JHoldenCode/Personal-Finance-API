@@ -6,7 +6,7 @@ from collections import defaultdict
 # example curl request
 # curl -X POST http://127.0.0.1:5000/money_spent -H "Content-Type: application/json" -d @input_post_purchases.json
 app = Flask(__name__)
-DB_FILE_PATH = '../../databases/money_spent/purchases.json'
+DB_FILE_PATH = 'databases/purchases.json'
 
 # HELPER METHODS
 
