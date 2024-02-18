@@ -1,11 +1,13 @@
 import json
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from datetime import datetime
 from collections import defaultdict
 
 # example curl request
 # curl -X POST http://127.0.0.1:5000/money_spent -H "Content-Type: application/json" -d @input_post_purchases.json
 app = Flask(__name__)
+CORS(app)   # enable cross-origin resource sharing on all routes
 DB_FILE_PATH = 'databases/purchases.json'
 
 # HELPER METHODS
