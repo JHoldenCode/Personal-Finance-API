@@ -1,14 +1,9 @@
 {
     "holdings": {
         "AAPL": {
-            "price": 25.6,
-            "shares": 5.5,
-            "cost_basis": 23.7
-        },
-        "SNAP": {
-            "price": 15,
-            "shares": 4.2,
-            "cost_basis": 22.6
+            "shares": 1,
+            "cost_basis": 4,
+            "price": 56
         }
     }
 }

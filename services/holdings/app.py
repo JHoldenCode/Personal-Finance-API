@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import json
 import requests
 import os
@@ -7,6 +8,7 @@ from dotenv import load_dotenv
 # example curl request
 # curl -X POST http://127.0.0.1:5000/holdings -H "Content-Type: application/json" -d @input_new_holdings.json
 app = Flask(__name__)
+CORS(app)   # enable cross-origin resource sharing on all routes
 DB_FILE_PATH = 'databases/current_holdings.json'
 
 @app.route('/holdings', methods=['POST'])
@@ -19,51 +21,47 @@ def post_holdings():
     new_holdings = request.get_json()['holdings']
 
     # update and add from new holdings
-    with open(DB_FILE_PATH, 'r+') as db:
+    current_holdings_json = {}
+    with open(DB_FILE_PATH, 'r') as db:
         # get view of current_holdings
         current_holdings_json = json.load(db)
-        current_holdings = current_holdings_json['holdings']
-        
-        # move cursor to top so file write begins at correct spot
-        # do not need to delete all contents because new file will be at
-        # least as long as old file
-        # TODO - ^^^ might be wrong with addition of API price fetching
-        db.seek(0)
+    current_holdings = current_holdings_json['holdings']
 
-        # setup query to Polygon stock API, i.e.
-        # https://api.polygon.io/v2/aggs/ticker/{stock_ticker}/prev?apiKey=
-        api_endpoint = 'https://api.polygon.io/v2/aggs/ticker/'
-        submit_api_key = 'prev?apiKey=' + polygon_api_key
+    # setup query to Polygon stock API, i.e.
+    # https://api.polygon.io/v2/aggs/ticker/{stock_ticker}/prev?apiKey=
+    api_endpoint = 'https://api.polygon.io/v2/aggs/ticker/'
+    submit_api_key = 'prev?apiKey=' + polygon_api_key
 
-        for new_holding in new_holdings:
+    for new_holding in new_holdings:
+        nh = new_holdings[new_holding]
+        price = None
+
+        # if new holding does not contain price, fetch stock price
+        if 'price' not in nh:
+            endpoint = api_endpoint + new_holding + '/' + submit_api_key
+            response = requests.get(endpoint)
+            data = response.json()
+            # closing price from previous day
+            price = data['results'][0]['c']
+
+            # if the fetched price is invalid, do not modify db according to this holding
+            if not price:
+                continue
+            nh['price'] = round(price, 3)
+
+        # update current holding with new data
+        if new_holding in current_holdings:
+            ch = current_holdings[new_holding]
             nh = new_holdings[new_holding]
-            price = None
+            ch['price'] = nh['price']
+            ch['shares'] = nh['shares']
+            ch['cost_basis'] = nh['cost_basis']
+        else: # add new holding data
+            current_holdings[new_holding] = new_holdings[new_holding]
 
-            # if new holding does not contain price, fetch stock price
-            if 'price' not in nh:
-                endpoint = api_endpoint + new_holding + '/' + submit_api_key
-                response = requests.get(endpoint)
-                data = response.json()
-                # closing price from previous day
-                price = data['results'][0]['c']
-
-                # if the fetched price is invalid, do not modify db according to this holding
-                if not price:
-                    continue
-                nh['price'] = round(price, 3)
-
-            # update current holding with new data
-            if new_holding in current_holdings:
-                ch = current_holdings[new_holding]
-                nh = new_holdings[new_holding]
-                ch['price'] = nh['price']
-                ch['shares'] = nh['shares']
-                ch['cost_basis'] = nh['cost_basis']
-            else: # add new holding data
-                current_holdings[new_holding] = new_holdings[new_holding]
-
-        # Write the updated data back to the file
-        json.dump(current_holdings_json, db, indent=4)
+        with open(DB_FILE_PATH, 'w') as db:
+            # Write the updated data back to the file
+            json.dump(current_holdings_json, db, indent=4)
 
     return 'Successfully updated holdings database with new holdings.', 200
 
