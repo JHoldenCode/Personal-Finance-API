@@ -4,6 +4,21 @@
             "shares": 1,
             "cost_basis": 4,
             "price": 56
+        },
+        "MSFT": {
+            "shares": 3,
+            "cost_basis": 2,
+            "price": 404.06
+        },
+        "SNAP": {
+            "shares": 78,
+            "cost_basis": 9,
+            "price": 11.17
+        },
+        "NVDA": {
+            "shares": 1000,
+            "cost_basis": -90,
+            "price": 726.13
         }
     }
 }
