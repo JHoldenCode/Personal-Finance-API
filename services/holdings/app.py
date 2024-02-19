@@ -7,8 +7,12 @@ from dotenv import load_dotenv
 
 # example curl request
 # curl -X POST http://127.0.0.1:5000/holdings -H "Content-Type: application/json" -d @input_new_holdings.json
+
 app = Flask(__name__)
-CORS(app)   # enable cross-origin resource sharing on all routes
+
+# enable cross-origin resource sharing on all routes
+CORS(app)
+
 DB_FILE_PATH = 'databases/current_holdings.json'
 
 @app.route('/holdings', methods=['POST'])
@@ -29,7 +33,7 @@ def post_holdings():
 
     # setup query to Polygon stock API, i.e.
     # https://api.polygon.io/v2/aggs/ticker/{stock_ticker}/prev?apiKey=
-    api_endpoint = 'https://api.polygon.io/v2/aggs/ticker/'
+    polygon_api_prefix = 'https://api.polygon.io/v2/aggs/ticker/'
     submit_api_key = 'prev?apiKey=' + polygon_api_key
 
     for new_holding in new_holdings:
@@ -38,9 +42,10 @@ def post_holdings():
 
         # if new holding does not contain price, fetch stock price
         if 'price' not in nh:
-            endpoint = api_endpoint + new_holding + '/' + submit_api_key
-            response = requests.get(endpoint)
+            polygon_endpoint = polygon_api_prefix + new_holding + '/' + submit_api_key
+            response = requests.get(polygon_endpoint)
             data = response.json()
+            
             # closing price from previous day
             price = data['results'][0]['c']
 

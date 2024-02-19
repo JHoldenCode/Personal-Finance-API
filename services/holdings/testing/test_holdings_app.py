@@ -31,7 +31,6 @@ def test_endpoint_clear_all_holdings():
     assert data == testing_objects['clear_all_holdings']
 
 def test_endpoint_post_holdings():
-    # TODO - add tests without price
     # reset database to empty default
     response = requests.delete('http://localhost:5000/holdings/clear_all')
     assert response.status_code == 200
@@ -42,7 +41,6 @@ def test_endpoint_post_holdings():
     response = requests.get('http://localhost:5000/holdings')
     assert response.status_code == 200
     data = response.json()
-    # TODO - verify that this is accurate
     assert data == testing_objects['post_holdings']['first_expected']
 
     # post new stock, update stock, one stock same
