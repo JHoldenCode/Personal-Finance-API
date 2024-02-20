@@ -7,6 +7,10 @@ from testing_holdings_json_objects import testing_objects
 
 APP_PY_PATH = os.path.abspath('app.py')
 
+# TODO - rename file
+# TODO - change all route names
+# TODO - change all holdings to positions in test object file
+
 @pytest.fixture(scope='module', autouse=True)
 def start_flask_app():
     # TODO - moduleNotFoundError for flask when started here

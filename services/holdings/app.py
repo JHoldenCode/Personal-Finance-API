@@ -93,65 +93,88 @@ def convert_relation_to_json(json_obj, relation):
 
     return round(total_equity, DECIMAL_PLACES), round(total_dollar_gain, DECIMAL_PLACES)
 
+def get_stock_price(ticker, position_data):
+    price = None
+    if 'price' not in position_data:
+        # setup query to Polygon stock API, i.e.
+        # https://api.polygon.io/v2/aggs/ticker/{stock_ticker}/prev?apiKey=
+        polygon_api_key = os.getenv('POLYGON_API_KEY')
+        polygon_api_prefix = 'https://api.polygon.io/v2/aggs/ticker/'
+        submit_api_key = 'prev?apiKey=' + polygon_api_key
+        polygon_endpoint = polygon_api_prefix + ticker + '/' + submit_api_key
 
+        # execute API request
+        response = requests.get(polygon_endpoint)
+        data = response.json()
+
+        # closing price from previous day
+        price = data['results'][0]['c']
+        if price:
+            price = round(price, DECIMAL_PLACES)
+    else:
+        price = position_data['price']
+    
+    return price
+
+
+@app.route('/positions', methods=['GET'])
+def get_positions():
+    # query all positions from the database
+    all_positions = Positions.query.all()
+
+    # setup json object to be returned
+    return_json = { 'positions': {}, 'compiled_stats': {} }
+
+    # convert objects from sql relation into json objects
+    # gather data on compiled stats
+    total_equity, total_dollar_gain = convert_relation_to_json(return_json, all_positions)
+
+    principal = total_equity - total_dollar_gain
+    total_percent_gain = calculate_total_percent_gain(total_equity, principal)
+
+    return_json['compiled_stats'] = {
+        'total_equity': total_equity,
+        'total_dollar_gain': total_dollar_gain,
+        'total_percent_gain': total_percent_gain
+    }
+
+    return jsonify(return_json), 200
+    
 @app.route('/positions', methods=['POST'])
 def post_holdings():
+    # TODO - check whether ticker is valid
+    try:
+        input_positions = request.get_json()['positions']
 
+        # update database session for each position in input
+        for ticker, position_data in input_positions.items():
+            existing_position = Positions.query.get(ticker)
 
+            price = get_stock_price(ticker, position_data)
 
+            # if a price was not found from the polygon API do not modify database
+            if not price:
+                continue
 
+            # update existing position or create new position
+            if existing_position:
+                existing_position.shares = position_data['shares']
+                existing_position.cost_basis = position_data['cost_basis']
+                existing_position.price = price
+            else:
+                new_position = Positions(
+                    ticker = ticker,
+                    shares = position_data['shares'],
+                    cost_basis = position_data['cost_basis'],
+                    price = price
+                )
+                db.session.add(new_position)
+        
+        db.session.commit()
 
-    # # TODO - check whether ticker is valid
-    # polygon_api_key = os.getenv('POLYGON_API_KEY')
-
-    # # access holdings submitted to endpoint
-    # new_holdings = request.get_json()['holdings']
-
-    # # update and add from new holdings
-    # current_holdings_json = {}
-    # with open(DB_FILE_PATH, 'r') as db:
-    #     # get view of current_holdings
-    #     current_holdings_json = json.load(db)
-    # current_holdings = current_holdings_json['holdings']
-
-    # # setup query to Polygon stock API, i.e.
-    # # https://api.polygon.io/v2/aggs/ticker/{stock_ticker}/prev?apiKey=
-    # polygon_api_prefix = 'https://api.polygon.io/v2/aggs/ticker/'
-    # submit_api_key = 'prev?apiKey=' + polygon_api_key
-
-    # for new_holding in new_holdings:
-    #     nh = new_holdings[new_holding]
-    #     price = None
-
-    #     # if new holding does not contain price, fetch stock price
-    #     if 'price' not in nh:
-    #         polygon_endpoint = polygon_api_prefix + new_holding + '/' + submit_api_key
-    #         response = requests.get(polygon_endpoint)
-    #         data = response.json()
-            
-    #         # closing price from previous day
-    #         price = data['results'][0]['c']
-
-    #         # if the fetched price is invalid, do not modify db according to this holding
-    #         if not price:
-    #             continue
-    #         nh['price'] = round(price, 3)
-
-    #     # update current holding with new data
-    #     if new_holding in current_holdings:
-    #         ch = current_holdings[new_holding]
-    #         nh = new_holdings[new_holding]
-    #         ch['price'] = nh['price']
-    #         ch['shares'] = nh['shares']
-    #         ch['cost_basis'] = nh['cost_basis']
-    #     else: # add new holding data
-    #         current_holdings[new_holding] = new_holdings[new_holding]
-
-    #     with open(DB_FILE_PATH, 'w') as db:
-    #         # Write the updated data back to the file
-    #         json.dump(current_holdings_json, db, indent=4)
-
-    # return 'Successfully updated holdings database with new holdings.', 200
+        return 'Successfully updated positions relation with the new position data', 200
+    except Exception as e:
+        return f'Error: {str(e)}', 500
 
 @app.route('/holdings', methods=['DELETE'])
 def delete_holdings():
@@ -178,29 +201,6 @@ def clear_all_holdings():
         json.dump(modified_db, db, indent=4)
 
     return "Successfully cleared all holdings from database.", 200
-
-@app.route('/positions', methods=['GET'])
-def get_holdings_info():
-    # query all positions from the database
-    all_positions = Positions.query.all()
-
-    # setup json object to be returned
-    return_json = { 'positions': {}, 'compiled_stats': {} }
-
-    # convert objects from sql relation into json objects
-    # gather data on compiled stats
-    total_equity, total_dollar_gain = convert_relation_to_json(return_json, all_positions)
-
-    principal = total_equity - total_dollar_gain
-    total_percent_gain = calculate_total_percent_gain(total_equity, principal)
-
-    return_json['compiled_stats'] = {
-        'total_equity': total_equity,
-        'total_dollar_gain': total_dollar_gain,
-        'total_percent_gain': total_percent_gain
-    }
-
-    return jsonify(return_json), 200
 
 
 if __name__ == '__main__':
