@@ -9,6 +9,10 @@ from dotenv import load_dotenv
 # example curl request
 # curl -X POST http://127.0.0.1:5000/holdings -H "Content-Type: application/json" -d @input_new_holdings.json
 
+# CONSTANTS
+
+DECIMAL_PLACES = 3
+
 app = Flask(__name__)
 load_dotenv()
 
@@ -25,66 +29,129 @@ db = SQLAlchemy(app)
 # DB_FILE_PATH = 'databases/current_holdings.json'
 
 # structure for Holdings Database in MySQL
-class Holdings(db.Model):
-    __tablename__ = 'holdings'
+class Positions(db.Model):
+    __tablename__ = 'positions'
     ticker = db.Column(db.String(5), primary_key=True)
     shares = db.Column(db.Double, nullable=False)
     cost_basis = db.Column(db.Double, nullable=False)
     price = db.Column(db.Double, nullable=False)
 
-@app.route('/holdings', methods=['POST'])
+
+# HELPER METHODS
+
+def calculate_equity(price, shares):
+    return round(price * shares, DECIMAL_PLACES)
+
+def calculate_dollar_gain(price, cost_basis, shares):
+    dollar_gain_per_share = price - cost_basis
+    total_dollar_gain = dollar_gain_per_share * shares
+    return round(total_dollar_gain, DECIMAL_PLACES)
+
+def calcluate_percent_gain(price, cost_basis):
+    # invalid cost_basis value
+    if cost_basis <= 0:
+        return 0
+    dollar_gain_per_share = price - cost_basis
+    percent_gain = dollar_gain_per_share / cost_basis * 100
+    return round(percent_gain, DECIMAL_PLACES)
+
+def calculate_total_percent_gain(total_equity, principal):
+    # invalid principal
+    if principal == 0:
+        return 0
+    growth_factor = total_equity / principal
+    return round(growth_factor - 1, 3)
+
+def convert_relation_to_json(json_obj, relation):
+    total_equity = 0
+    total_dollar_gain = 0
+    # convert SQL table data on positions into json objects
+    for position in relation:
+        price = position.price
+        cost_basis = position.cost_basis
+        shares = position.shares
+        ticker = position.ticker
+
+        equity = calculate_equity(price, shares)
+        dollar_gain = calculate_dollar_gain(price, cost_basis, shares)
+        percent_gain = calcluate_percent_gain(price, cost_basis)
+
+        # create position data object
+        position_data = {
+            'price': price,
+            'cost_basis': cost_basis,
+            'shares': shares,
+            'equity': equity,
+            'dollar_gain': dollar_gain,
+            'percent_gain': percent_gain
+        }
+        json_obj['positions'][ticker] = position_data
+
+        # increment sums of equity and dollar_gain
+        total_equity += equity
+        total_dollar_gain += dollar_gain
+
+    return round(total_equity, DECIMAL_PLACES), round(total_dollar_gain, DECIMAL_PLACES)
+
+
+@app.route('/positions', methods=['POST'])
 def post_holdings():
-    # TODO - check whether ticker is valid
-    polygon_api_key = os.getenv('POLYGON_API_KEY')
 
-    # access holdings submitted to endpoint
-    new_holdings = request.get_json()['holdings']
 
-    # update and add from new holdings
-    current_holdings_json = {}
-    with open(DB_FILE_PATH, 'r') as db:
-        # get view of current_holdings
-        current_holdings_json = json.load(db)
-    current_holdings = current_holdings_json['holdings']
 
-    # setup query to Polygon stock API, i.e.
-    # https://api.polygon.io/v2/aggs/ticker/{stock_ticker}/prev?apiKey=
-    polygon_api_prefix = 'https://api.polygon.io/v2/aggs/ticker/'
-    submit_api_key = 'prev?apiKey=' + polygon_api_key
 
-    for new_holding in new_holdings:
-        nh = new_holdings[new_holding]
-        price = None
 
-        # if new holding does not contain price, fetch stock price
-        if 'price' not in nh:
-            polygon_endpoint = polygon_api_prefix + new_holding + '/' + submit_api_key
-            response = requests.get(polygon_endpoint)
-            data = response.json()
+    # # TODO - check whether ticker is valid
+    # polygon_api_key = os.getenv('POLYGON_API_KEY')
+
+    # # access holdings submitted to endpoint
+    # new_holdings = request.get_json()['holdings']
+
+    # # update and add from new holdings
+    # current_holdings_json = {}
+    # with open(DB_FILE_PATH, 'r') as db:
+    #     # get view of current_holdings
+    #     current_holdings_json = json.load(db)
+    # current_holdings = current_holdings_json['holdings']
+
+    # # setup query to Polygon stock API, i.e.
+    # # https://api.polygon.io/v2/aggs/ticker/{stock_ticker}/prev?apiKey=
+    # polygon_api_prefix = 'https://api.polygon.io/v2/aggs/ticker/'
+    # submit_api_key = 'prev?apiKey=' + polygon_api_key
+
+    # for new_holding in new_holdings:
+    #     nh = new_holdings[new_holding]
+    #     price = None
+
+    #     # if new holding does not contain price, fetch stock price
+    #     if 'price' not in nh:
+    #         polygon_endpoint = polygon_api_prefix + new_holding + '/' + submit_api_key
+    #         response = requests.get(polygon_endpoint)
+    #         data = response.json()
             
-            # closing price from previous day
-            price = data['results'][0]['c']
+    #         # closing price from previous day
+    #         price = data['results'][0]['c']
 
-            # if the fetched price is invalid, do not modify db according to this holding
-            if not price:
-                continue
-            nh['price'] = round(price, 3)
+    #         # if the fetched price is invalid, do not modify db according to this holding
+    #         if not price:
+    #             continue
+    #         nh['price'] = round(price, 3)
 
-        # update current holding with new data
-        if new_holding in current_holdings:
-            ch = current_holdings[new_holding]
-            nh = new_holdings[new_holding]
-            ch['price'] = nh['price']
-            ch['shares'] = nh['shares']
-            ch['cost_basis'] = nh['cost_basis']
-        else: # add new holding data
-            current_holdings[new_holding] = new_holdings[new_holding]
+    #     # update current holding with new data
+    #     if new_holding in current_holdings:
+    #         ch = current_holdings[new_holding]
+    #         nh = new_holdings[new_holding]
+    #         ch['price'] = nh['price']
+    #         ch['shares'] = nh['shares']
+    #         ch['cost_basis'] = nh['cost_basis']
+    #     else: # add new holding data
+    #         current_holdings[new_holding] = new_holdings[new_holding]
 
-        with open(DB_FILE_PATH, 'w') as db:
-            # Write the updated data back to the file
-            json.dump(current_holdings_json, db, indent=4)
+    #     with open(DB_FILE_PATH, 'w') as db:
+    #         # Write the updated data back to the file
+    #         json.dump(current_holdings_json, db, indent=4)
 
-    return 'Successfully updated holdings database with new holdings.', 200
+    # return 'Successfully updated holdings database with new holdings.', 200
 
 @app.route('/holdings', methods=['DELETE'])
 def delete_holdings():
@@ -112,55 +179,28 @@ def clear_all_holdings():
 
     return "Successfully cleared all holdings from database.", 200
 
-@app.route('/holdings', methods=['GET'])
+@app.route('/positions', methods=['GET'])
 def get_holdings_info():
-    # Query all holdings from the database
-    all_holdings = Holdings.query.all()
+    # query all positions from the database
+    all_positions = Positions.query.all()
 
-    print(all_holdings)
+    # setup json object to be returned
+    return_json = { 'positions': {}, 'compiled_stats': {} }
 
-    return jsonify({}), 200
+    # convert objects from sql relation into json objects
+    # gather data on compiled stats
+    total_equity, total_dollar_gain = convert_relation_to_json(return_json, all_positions)
 
+    principal = total_equity - total_dollar_gain
+    total_percent_gain = calculate_total_percent_gain(total_equity, principal)
 
+    return_json['compiled_stats'] = {
+        'total_equity': total_equity,
+        'total_dollar_gain': total_dollar_gain,
+        'total_percent_gain': total_percent_gain
+    }
 
-    # current_holdings_json = {}
-
-    # with open(DB_FILE_PATH, 'r') as db:
-    #     current_holdings_json = json.load(db)
-
-    # current_holdings = current_holdings_json['holdings']
-    # total_equity = 0
-    # total_dollar_gain = 0
-    # for holding in current_holdings:
-    #     holding_info = current_holdings[holding]
-
-    #     # access holding info
-    #     price = holding_info['price']
-    #     shares = holding_info['shares']
-    #     cost_basis = holding_info['cost_basis']
-
-    #     # add new holding info fields
-    #     equity = round(price * shares, 3)
-    #     dollar_gain = round((price - cost_basis) * shares, 3)
-    #     holding_info['equity'] = equity
-    #     holding_info['dollar_gain'] = dollar_gain
-    #     holding_info['percent_gain'] = round((price - cost_basis) / cost_basis * 100, 3) if cost_basis > 0 else 0
-
-    #     # increment sums of equity and dollars gained
-    #     total_equity += equity
-    #     total_dollar_gain += dollar_gain
-    
-    # # append separate JSON object of sums
-    # total_dollar_gain = round(total_dollar_gain, 3)
-    # principal = total_equity - total_dollar_gain
-    # total_percent_gain = round(total_equity / principal - 1, 3) if principal != 0 else 0
-    # current_holdings_json['compiled_stats'] = {
-    #     'total_equity': total_equity,
-    #     'total_dollar_gain': total_dollar_gain,
-    #     'total_percent_gain': total_percent_gain
-    # }
-
-    # return current_holdings_json, 200
+    return jsonify(return_json), 200
 
 
 if __name__ == '__main__':
