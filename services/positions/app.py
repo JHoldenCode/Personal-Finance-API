@@ -1,25 +1,28 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from dotenv import load_dotenv
 import json
 import requests
 import os
-from dotenv import load_dotenv
+
+# TODO - make pytests for helper methods
 
 # example curl request
 # curl -X POST http://127.0.0.1:5000/positions -H "Content-Type: application/json" -d @input_new_positions.json
+# for an example of the JSON structure for the routes below, check out testing/test_positions_json_objects.py
 
 # CONSTANTS
-
 DECIMAL_PLACES = 3
 
+# setup flask app
 app = Flask(__name__)
-load_dotenv()
 
 # enable cross-origin resource sharing on all routes
 CORS(app)
 
 # Configure MySQL connection URI
+load_dotenv()
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -114,6 +117,8 @@ def get_stock_price(ticker, position_data):
     
     return price
 
+
+# ROUTES
 
 @app.route('/positions', methods=['GET'])
 def get_positions():

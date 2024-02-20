@@ -1,15 +1,15 @@
 testing_objects = {
-    'clear_all_holdings': {
+    'clear_all_positions': {
         'compiled_stats': {
             'total_dollar_gain': 0,
             'total_equity': 0,
             'total_percent_gain': 0
         },
-        'holdings': {}
+        'positions': {}
     },
-    'post_holdings': {
+    'post_positions': {
         'first_post': {
-            'holdings': {
+            'positions': {
                 'AAPL': {
                     'price': 25.60,
                     'shares': 5.5,
@@ -33,7 +33,7 @@ testing_objects = {
                 'total_equity': 930.654,
                 'total_percent_gain': 0.115
             },
-            'holdings': {
+            'positions': {
                 'AAPL': {
                     'price': 25.60,
                     'dollar_gain': 10.45,
@@ -61,7 +61,7 @@ testing_objects = {
             }
         },
         'second_post': {
-            'holdings': {
+            'positions': {
                 'NVDA': {
                     'price': 89.75,
                     'shares': 2.3,
@@ -85,7 +85,7 @@ testing_objects = {
                 'total_equity': 1204.579,
                 'total_percent_gain': 0.054
             },
-            'holdings': {
+            'positions': {
                 'AAPL': {
                     'price': 25.60,
                     'dollar_gain': 10.45,
@@ -121,21 +121,21 @@ testing_objects = {
             }
         }
     },
-    'delete_holdings': {
+    'delete_positions': {
         'first_delete': {
-            'holdings': [
+            'positions': [
                 'AAPL',
                 'MSFT'
             ]
         },
         'second_delete': {
-            'holdings': [
+            'positions': [
                 'MSFT',
                 'ETSY'
             ]
         },
         'third_delete': {
-            'holdings': []
+            'positions': []
         },
         'delete_expected': {
             'compiled_stats' : {
@@ -143,7 +143,7 @@ testing_objects = {
                 'total_equity': 203.8,
                 'total_percent_gain': -0.095
             },
-            'holdings': {
+            'positions': {
                 'AAPL': {
                     'price': 25.60,
                     'dollar_gain': 10.45,
