@@ -1,13 +1,5 @@
 {
-    "positions": {
-        "AAPL": {
-            "shares": 6,
-            "cost_basis": 5.78
-        },
-        "SNAP": {
-            "price": 77.8,
-            "shares": 34,
-            "cost_basis": 32.1
-        }
-    }
+    "positions": [
+        "AAPL"
+    ]
 }

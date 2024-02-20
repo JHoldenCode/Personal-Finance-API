@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv
 
 # example curl request
-# curl -X POST http://127.0.0.1:5000/holdings -H "Content-Type: application/json" -d @input_new_holdings.json
+# curl -X POST http://127.0.0.1:5000/positions -H "Content-Type: application/json" -d @input_new_positions.json
 
 # CONSTANTS
 
@@ -26,9 +26,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Initialize SQLAlchemy
 db = SQLAlchemy(app)
 
-# DB_FILE_PATH = 'databases/current_holdings.json'
-
-# structure for Holdings Database in MySQL
+# structure for Positions Database in MySQL
 class Positions(db.Model):
     __tablename__ = 'positions'
     ticker = db.Column(db.String(5), primary_key=True)
@@ -141,7 +139,7 @@ def get_positions():
     return jsonify(return_json), 200
     
 @app.route('/positions', methods=['POST'])
-def post_holdings():
+def post_positions():
     # TODO - check whether ticker is valid
     try:
         input_positions = request.get_json()['positions']
@@ -176,31 +174,34 @@ def post_holdings():
     except Exception as e:
         return f'Error: {str(e)}', 500
 
-@app.route('/holdings', methods=['DELETE'])
-def delete_holdings():
-    # access holdings submitted to endpoint
-    holdings_to_delete = request.get_json()['holdings']
+@app.route('/positions', methods=['DELETE'])
+def delete_positions():
+    # access positions submitted to endpoint
+    positions_to_delete = request.get_json()['positions']
 
-    # create new json obj that will be written to file
-    modified_db = { "holdings": {}}
-    # include only holdings that are not to be deleted in modified db
-    with open(DB_FILE_PATH, 'r') as db:
-        current_holdings = json.load(db)['holdings']
-        modified_db['holdings'] = { obj: current_holdings[obj] for obj in current_holdings if obj not in holdings_to_delete }
+    # get positions from database that are in positions_to_delete
+    positions_to_delete_query = Positions.query.filter(Positions.ticker.in_(positions_to_delete)).all()
 
-    # overwrite file with new db json
-    with open(DB_FILE_PATH, 'w') as db:
-        json.dump(modified_db, db, indent=4)
+    for position in positions_to_delete_query:
+        db.session.delete(position)
 
-    return "Successfully deleted from holdings database.", 200
+    db.session.commit()
 
-@app.route('/holdings/clear_all', methods=['DELETE'])
-def clear_all_holdings():
-    modified_db = { 'holdings': {} }
-    with open(DB_FILE_PATH, 'w') as db:
-        json.dump(modified_db, db, indent=4)
+    return 'Successfully deleted from positions database.', 200
 
-    return "Successfully cleared all holdings from database.", 200
+@app.route('/positions/clear_all', methods=['DELETE'])
+def clear_all_positions():
+    try:
+        all_positions = Positions.query.all()
+
+        for position in all_positions:
+            db.session.delete(position)
+
+        db.session.commit()
+
+        return 'Successfully cleared all positions from the database.', 200
+    except Exception as e:
+        return f'Error: {str(e)}', 500
 
 
 if __name__ == '__main__':
