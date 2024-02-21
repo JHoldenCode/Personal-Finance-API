@@ -48,7 +48,24 @@ def transfer_purchases_from_json(return_purchases, current_purchases, date):
 
     return_purchases[year][month][date] = current_purchases[year][month][date]
 
-def set_start_end_date_defaults(start_date, end_date):
+def convert_relation_to_json(relation, json):
+    for purchase in relation:
+        purchase_data = {
+            'id': purchase.id,
+            'date': purchase.date,
+            'amount': purchase.amount,
+            'memo': purchase.memo,
+            'category': purchase.category
+        }
+
+        json['purchases'].append(purchase_data)
+
+def validate_date_arguments(start_date, end_date):
+    NO_ARG_MSG = "Must submit a start and/or end date for this endpoint using the args 'start' and 'end'.\nUse the /money_spent/all_purchases endpoint to get all purchase records."
+
+    if not start_date and not end_date:
+        raise ValueError(NO_ARG_MSG)
+
     if not start_date:
         # set arbitrary start date from long ago to include purchases up until end_date
         start_date = '9/15/1215'
@@ -59,11 +76,13 @@ def set_start_end_date_defaults(start_date, end_date):
     return start_date, end_date
 
 def verify_chronological_order(start_date, end_date):
+    NOT_CHRONO_MSG = 'Unable to retrieve purchases in a range where start date is after end date.'
+
     # check that end date is after or on same day as start date
     start_date_timestamp = datetime.strptime(start_date, '%m/%d/%Y')
     end_date_timestamp = datetime.strptime(end_date, '%m/%d/%Y')
     if start_date_timestamp > end_date_timestamp:
-        raise ValueError
+        raise ValueError(NOT_CHRONO_MSG)
     
     return start_date_timestamp, end_date_timestamp
 
@@ -98,17 +117,31 @@ def get_all_purchases():
     all_purchases = Purchases.query.all()
 
     return_json = { 'purchases': [] }
+    convert_relation_to_json(all_purchases, return_json)
 
-    for purchase in all_purchases:
-        purchase_data = {
-            'id': purchase.id,
-            'date': purchase.date,
-            'amount': purchase.amount,
-            'memo': purchase.memo,
-            'category': purchase.category
-        }
+    return jsonify(return_json), 200
 
-        return_json['purchases'].append(purchase_data)
+# arguments: start, end -> str in MM/DD/YYYY format
+@app.route('/purchases/range', methods=['GET'])
+def get_range_of_purchases():
+    # get arguments for start and end dates inclusive
+    start_date = request.args.get('start')
+    end_date = request.args.get('end')
+
+    try:
+        start_date, end_date = validate_date_arguments(start_date, end_date)
+        start_date_timestamp, end_date_timestamp = verify_chronological_order(start_date, end_date)
+    except ValueError as err:
+        return str(err), 400
+
+    # TODO - ensure dates are in correct MM/DD/YYYY format
+    start_month, start_day, start_year = start_date.split('/')
+    end_month, end_day, end_year = end_date.split('/')
+
+    return_json = { 'purchases': [] }
+    purchases_in_date_range = Purchases.query.filter(Purchases.date.between(start_date_timestamp, end_date_timestamp)).all()
+
+    convert_relation_to_json(purchases_in_date_range, return_json)
 
     return jsonify(return_json), 200
 
@@ -151,48 +184,6 @@ def post_money_spent():
         json.dump(current_purchases_json, db, indent=4)
     
     return 'Successfully updated purchases database with new purchases.', 200
-
-# arguments: start, end -> str in M-D-Y format
-@app.route('/money_spent/range_of_purchases', methods=['GET'])
-def get_range_of_purchases():
-    NO_ARG_MSG = "Must submit a start and/or end date for this endpoint using the args 'start' and 'end'.\nUse the /money_spent/all_purchases endpoint to get all purchase records."
-    NO_ARG_ERR_CODE = 401
-    NOT_CHRONO_MSG = 'Unable to retrieve purchases in a range where start date is after end date.'
-    NOT_CHRONO_ERR_CODE = 402
-
-    # get arguments for start and end dates inclusive
-    start_date = request.args.get('start')
-    end_date = request.args.get('end')
-
-    if not start_date and not end_date:
-        return NO_ARG_MSG, NO_ARG_ERR_CODE
-    start_date, end_date = set_start_end_date_defaults(start_date, end_date)
-
-    try:
-        start_date_timestamp, end_date_timestamp = verify_chronological_order(start_date, end_date)
-    except ValueError:
-        return NOT_CHRONO_MSG, NOT_CHRONO_ERR_CODE
-
-    # TODO - ensure dates are in correct MM-DD-YYYY format
-    start_month, start_day, start_year = start_date.split('/')
-    end_month, end_day, end_year = end_date.split('/')
-
-    # append purchase data within range of dates to return_json
-    return_json = {'purchases': {}}
-    with open(DB_FILE_PATH, 'r') as db:
-        # get view of current purchases
-        current_purchases_json = json.load(db)
-        current_purchases = current_purchases_json['purchases']
-
-        for year in current_purchases:
-            if year >= start_year and year <= end_year:
-                for month in current_purchases[year]:
-                    for date in current_purchases[year][month]:
-                        date_timestamp = datetime.strptime(date, '%m/%d/%Y')
-                        if date_timestamp >= start_date_timestamp and date_timestamp <= end_date_timestamp:
-                            transfer_purchases_from_json(return_json['purchases'], current_purchases, date)
-
-    return jsonify(return_json), 200
 
 # arguments: start, end -> str in M-D-Y format
 @app.route('/money_spent/category_summation', methods=['GET'])
