@@ -39,17 +39,8 @@ class Purchases(db.Model):
 
 # HELPER METHODS
 
-def transfer_purchases_from_json(return_purchases, current_purchases, date):
-    month, day, year = date.split('/')
-    if year not in return_purchases:
-        return_purchases[year] = {}
-
-    if month not in return_purchases[year]:
-        return_purchases[year][month] = {}
-
-    return_purchases[year][month][date] = current_purchases[year][month][date]
-
-def convert_relation_to_json(relation, json_obj):
+def convert_relation_to_json(relation):
+    json_obj = { 'purchases': {} }
     for purchase in relation:
         purchase_data = {
             'id': purchase.id,
@@ -60,6 +51,8 @@ def convert_relation_to_json(relation, json_obj):
         }
 
         json_obj['purchases'].append(purchase_data)
+
+    return json_obj
 
 def validate_date_arguments(start_date, end_date):
     NO_ARG_MSG = "Must submit a start and/or end date for this endpoint using the args 'start' and 'end'.\nUse the /money_spent/all_purchases endpoint to get all purchase records."
@@ -92,23 +85,8 @@ def category_summation_query(start_date_timestamp, end_date_timestamp):
     query = db.session.query(Purchases.category, func.sum(Purchases.amount).label('total_amount')) \
         .filter(Purchases.date.between(start_date_timestamp, end_date_timestamp)) \
         .group_by(Purchases.category).all()
-    return query
 
-def delete_purchases_from_date(current_purchases, date, indices_to_delete):
-    # try to find date obj in current purchases json
-    month, day, year = date.split('/')
-    purchases_on_date = {}
-    try:
-        purchases_on_date = current_purchases[year][month][date]
-    except KeyError:
-        return
-    
-    modified_purchases_on_date = []
-    for i, purchase in enumerate(purchases_on_date):
-        if i not in indices_to_delete:
-            modified_purchases_on_date.append(purchase)
-    
-    current_purchases[year][month][date] = modified_purchases_on_date
+    return query
     
 
 # ROUTES
@@ -117,9 +95,7 @@ def delete_purchases_from_date(current_purchases, date, indices_to_delete):
 @app.route('/purchases/all_purchases', methods=['GET'])
 def get_all_purchases():
     all_purchases = Purchases.query.all()
-
-    return_json = { 'purchases': [] }
-    convert_relation_to_json(all_purchases, return_json)
+    return_json = convert_relation_to_json(all_purchases)
 
     return jsonify(return_json), 200
 
@@ -130,16 +106,15 @@ def get_range_of_purchases():
     start_date = request.args.get('start')
     end_date = request.args.get('end')
 
+    # validate arguments
     try:
         start_date, end_date = validate_date_arguments(start_date, end_date)
         start_date_timestamp, end_date_timestamp = verify_chronological_order(start_date, end_date)
     except ValueError as err:
         return str(err), 400
 
-    return_json = { 'purchases': [] }
     purchases_in_date_range = Purchases.query.filter(Purchases.date.between(start_date_timestamp, end_date_timestamp)).all()
-
-    convert_relation_to_json(purchases_in_date_range, return_json)
+    return_json = convert_relation_to_json(purchases_in_date_range)
 
     return jsonify(return_json), 200
 
@@ -150,6 +125,7 @@ def get_category_summation():
     start_date = request.args.get('start')
     end_date = request.args.get('end')
 
+    # validate arguments
     try:
         start_date, end_date = validate_date_arguments(start_date, end_date)
         start_date_timestamp, end_date_timestamp = verify_chronological_order(start_date, end_date)
@@ -161,6 +137,8 @@ def get_category_summation():
     # gets the sum of all purchases in each category returned as a list of tuples
     category_summation = category_summation_query(start_date_timestamp, end_date_timestamp)
     for category, amount in category_summation:
+        if not category:
+            category = 'No Category'
         return_json['categories'][category] = amount
 
     return_json['date_range'] = {
@@ -170,73 +148,61 @@ def get_category_summation():
 
     return jsonify(return_json), 200
 
-@app.route('/money_spent', methods=['POST'])
-def post_money_spent():
-    # access purchases submitted to endpoint
-    new_purchase_dates = request.get_json()['purchases']
+@app.route('/purchases', methods=['POST'])
+def post_purchases():
+    # TODO - input data verification to ensure that there is an amount and date listed
+    try:
+        # date field in inputs are of the format MM/DD/YYYY
+        input_purchases = request.get_json()['purchases']
 
-    # update and add from new purchases
-    with open(DB_FILE_PATH, 'r+') as db:
-        # get view of current purchases
-        current_purchases_json = json.load(db)
-        current_purchases = current_purchases_json['purchases']
+        for purchase in input_purchases:
+            # date field needs to be in YYYY-MM-DD format for MySQL database
+            month, day, year = purchase['date'].split('/')
+            correctly_formatted_date = year + '-' + month + '-' + day
 
-        # move cursor to top so file write begins at correct spot
-        # do not need to delete all contents because new file will be at
-        # least as long as old file
-        db.seek(0)
+            new_purchase = Purchases(
+                date = correctly_formatted_date,
+                amount = purchase['amount'],
+                memo = purchase.get('memo') or None,
+                category = purchase.get('category') or None
+            )
 
-        for new_purchase_date in new_purchase_dates:
-            # TODO - ensure date is in MM-DD-YYYY format
-            month, day, year = new_purchase_date.split('/')
+            db.session.add(new_purchase)
 
-            # if year from new purchase never seen before, add empty month object for every month in year
-            if year not in current_purchases:
-                current_purchases[year] = {}
-                for month_num in range(1, 13):
-                    current_purchases[year][str(month_num)] = {}
+        db.session.commit()
 
-            cp_year_month_obj = current_purchases[year][month]
-            # arr of new purchases on this date
-            new_purchases = new_purchase_dates[new_purchase_date]
+        return 'Successfully update purchases database with new purchases.', 200
+    except Exception as e:
+        return f'Error: {str(e)}', 500
 
-            for new_purchase in new_purchases:
-                if new_purchase_date in cp_year_month_obj:
-                    cp_year_month_obj[new_purchase_date].append(new_purchase)
-                else:
-                    cp_year_month_obj[new_purchase_date] = [new_purchase]
-
-        json.dump(current_purchases_json, db, indent=4)
-    
-    return 'Successfully updated purchases database with new purchases.', 200
-
-@app.route('/money_spent', methods=['DELETE'])
+@app.route('/purchases', methods=['DELETE'])
 def delete_purchases():
-    delete_purchases_json = request.get_json()
-    delete_purchase_dates = delete_purchases_json['purchases']
+    delete_purchases_with_ids = request.get_json()['purchases']
 
-    current_purchases_json = {}
-    with open(DB_FILE_PATH, 'r') as db:
-        current_purchases_json = json.load(db)
-    current_purchases = current_purchases_json['purchases']
-    
-    for date in delete_purchase_dates:
-        indices_to_delete = delete_purchase_dates[date]
-        delete_purchases_from_date(current_purchases, date, indices_to_delete)
+    try:
+        for purchase_id in delete_purchases_with_ids:
+            Purchases.query.filter_by(id=purchase_id).delete()
 
-    with open(DB_FILE_PATH, 'w') as db:
-        json.dump(current_purchases_json, db, indent=4)
+        db.session.commit()
 
-    return 'Successfully deleted purchase records from database.', 200
+        return 'Successfully deleted purchase records from database.', 200
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        error_msg = f"Error deleting purchase records: {str(e)}"
+        return error_msg, 500
 
-@app.route('/money_spent/clear_all', methods=['DELETE'])
+@app.route('/purchases/clear_all', methods=['DELETE'])
 def clear_all_purchases():
-    new_purchases = { 'purchases': {} }
+    try:
+        # Use db.session.query.delete() to delete all records in the Purchases table
+        db.session.query(Purchases).delete()
+        db.session.commit()
 
-    with open(DB_FILE_PATH, 'w') as db:
-        json.dump(new_purchases, db, indent=4)
-    
-    return 'Successfully deleted all purchase records from database.', 200
+        return 'Successfully deleted all purchase records from database.', 200
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        error_msg = f"Error clearing all purchase records: {str(e)}"
+        return error_msg, 500
 
 
 if __name__ == '__main__':
