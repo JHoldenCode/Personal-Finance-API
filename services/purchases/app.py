@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func
 from dotenv import load_dotenv
 from datetime import datetime
 from collections import defaultdict
@@ -48,7 +49,7 @@ def transfer_purchases_from_json(return_purchases, current_purchases, date):
 
     return_purchases[year][month][date] = current_purchases[year][month][date]
 
-def convert_relation_to_json(relation, json):
+def convert_relation_to_json(relation, json_obj):
     for purchase in relation:
         purchase_data = {
             'id': purchase.id,
@@ -58,7 +59,7 @@ def convert_relation_to_json(relation, json):
             'category': purchase.category
         }
 
-        json['purchases'].append(purchase_data)
+        json_obj['purchases'].append(purchase_data)
 
 def validate_date_arguments(start_date, end_date):
     NO_ARG_MSG = "Must submit a start and/or end date for this endpoint using the args 'start' and 'end'.\nUse the /money_spent/all_purchases endpoint to get all purchase records."
@@ -86,11 +87,12 @@ def verify_chronological_order(start_date, end_date):
     
     return start_date_timestamp, end_date_timestamp
 
-def sum_purchases_on_date(summation_dict, purchases_on_date):
-    for purchase_obj in purchases_on_date:
-        category = purchase_obj['category']
-        amount = purchase_obj['amount']
-        summation_dict[category] += amount
+# returns a list of tuples of the sum of all purchases in each category (category, sum)
+def category_summation_query(start_date_timestamp, end_date_timestamp):
+    query = db.session.query(Purchases.category, func.sum(Purchases.amount).label('total_amount')) \
+        .filter(Purchases.date.between(start_date_timestamp, end_date_timestamp)) \
+        .group_by(Purchases.category).all()
+    return query
 
 def delete_purchases_from_date(current_purchases, date, indices_to_delete):
     # try to find date obj in current purchases json
@@ -134,14 +136,37 @@ def get_range_of_purchases():
     except ValueError as err:
         return str(err), 400
 
-    # TODO - ensure dates are in correct MM/DD/YYYY format
-    start_month, start_day, start_year = start_date.split('/')
-    end_month, end_day, end_year = end_date.split('/')
-
     return_json = { 'purchases': [] }
     purchases_in_date_range = Purchases.query.filter(Purchases.date.between(start_date_timestamp, end_date_timestamp)).all()
 
     convert_relation_to_json(purchases_in_date_range, return_json)
+
+    return jsonify(return_json), 200
+
+# arguments: start, end -> str in MM/DD/YYYY format
+@app.route('/purchases/category_summation', methods=['GET'])
+def get_category_summation():
+    # get arguments for start and end dates inclusive
+    start_date = request.args.get('start')
+    end_date = request.args.get('end')
+
+    try:
+        start_date, end_date = validate_date_arguments(start_date, end_date)
+        start_date_timestamp, end_date_timestamp = verify_chronological_order(start_date, end_date)
+    except ValueError as err:
+        return str(err), 400
+
+    return_json = { 'categories': {} }
+
+    # gets the sum of all purchases in each category returned as a list of tuples
+    category_summation = category_summation_query(start_date_timestamp, end_date_timestamp)
+    for category, amount in category_summation:
+        return_json['categories'][category] = amount
+
+    return_json['date_range'] = {
+        'start_date': start_date,
+        'end_date': end_date
+    }
 
     return jsonify(return_json), 200
 
@@ -184,51 +209,6 @@ def post_money_spent():
         json.dump(current_purchases_json, db, indent=4)
     
     return 'Successfully updated purchases database with new purchases.', 200
-
-# arguments: start, end -> str in M-D-Y format
-@app.route('/money_spent/category_summation', methods=['GET'])
-def get_category_summation():
-    NOT_CHRONO_MSG = 'Unable to retrieve purchases in a range where start date is after end date.'
-    NOT_CHRONO_ERR_CODE = 402
-
-    # get arguments for start and end dates inclusive
-    start_date = request.args.get('start')
-    end_date = request.args.get('end')
-
-    start_date, end_date = set_start_end_date_defaults(start_date, end_date)
-
-    try:
-        start_date_timestamp, end_date_timestamp = verify_chronological_order(start_date, end_date)
-    except ValueError:
-        return NOT_CHRONO_MSG, NOT_CHRONO_ERR_CODE
-
-    start_month, start_day, start_year = start_date.split('/')
-    end_month, end_day, end_year = end_date.split('/')
-
-    category_summation_dict = {}
-    category_summation_dict['categories'] = defaultdict(float)
-    current_purchases = {}
-    with open(DB_FILE_PATH, 'r') as db:
-        # get view of current purchases
-        current_purchases_json = json.load(db)
-        current_purchases = current_purchases_json['purchases']
-
-    # TODO - modularize this code with similar code in get_range_of_purchases()
-    for year in current_purchases:
-        if year >= start_year and year <= end_year:
-            for month in current_purchases[year]:
-                for date in current_purchases[year][month]:
-                    date_timestamp = datetime.strptime(date, '%m/%d/%Y')
-                    if date_timestamp >= start_date_timestamp and date_timestamp <= end_date_timestamp:
-                        purchases_on_date = current_purchases[year][month][date]
-                        sum_purchases_on_date(category_summation_dict['categories'], purchases_on_date)
-
-    category_summation_dict['date_range'] = {
-        'start_date': start_date,
-        'end_date': end_date
-    }
-
-    return jsonify(category_summation_dict), 200
 
 @app.route('/money_spent', methods=['DELETE'])
 def delete_purchases():
