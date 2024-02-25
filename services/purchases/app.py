@@ -156,16 +156,13 @@ def get_category_summation():
 def post_purchases():
     # TODO - input data verification to ensure that there is an amount and date listed
     try:
-        # date field in inputs are of the format MM/DD/YYYY
+        # date field in inputs are of the format YYYY-MM-DD
         input_purchases = request.get_json()['purchases']
 
         for purchase in input_purchases:
-            # date field needs to be in YYYY-MM-DD format for MySQL database
-            month, day, year = purchase['date'].split('/')
-            correctly_formatted_date = year + '-' + month + '-' + day
-
+            # TODO - check if its needed to make this obj or if could just use purchase
             new_purchase = Purchases(
-                date = correctly_formatted_date,
+                date = purchase['date'],
                 amount = purchase['amount'],
                 memo = purchase.get('memo') or None,
                 category = purchase.get('category') or None
