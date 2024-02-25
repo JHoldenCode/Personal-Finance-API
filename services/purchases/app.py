@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import func
+from sqlalchemy import func, text
 from dotenv import load_dotenv
 from datetime import datetime
 from collections import defaultdict
@@ -40,11 +40,13 @@ class Purchases(db.Model):
 # HELPER METHODS
 
 def convert_relation_to_json(relation):
-    json_obj = { 'purchases': {} }
+    json_obj = { 'purchases': [] }
     for purchase in relation:
+        formatted_date = purchase.date.strftime('%m/%d/%Y')
+
         purchase_data = {
             'id': purchase.id,
-            'date': purchase.date,
+            'date': formatted_date,
             'amount': purchase.amount,
             'memo': purchase.memo,
             'category': purchase.category
@@ -55,7 +57,7 @@ def convert_relation_to_json(relation):
     return json_obj
 
 def validate_date_arguments(start_date, end_date):
-    NO_ARG_MSG = "Must submit a start and/or end date for this endpoint using the args 'start' and 'end'.\nUse the /money_spent/all_purchases endpoint to get all purchase records."
+    NO_ARG_MSG = "Must submit a start and/or end date for this endpoint using the args 'start' and 'end'.\nUse the /purchases/all endpoint to get all purchase records."
 
     if not start_date and not end_date:
         raise ValueError(NO_ARG_MSG)
@@ -92,9 +94,10 @@ def category_summation_query(start_date_timestamp, end_date_timestamp):
 # ROUTES
 
 # returns whole DB file
-@app.route('/purchases/all_purchases', methods=['GET'])
+@app.route('/purchases/all', methods=['GET'])
 def get_all_purchases():
-    all_purchases = Purchases.query.all()
+    # return results sorted so it will be easier to implement the client side purchases table
+    all_purchases = Purchases.query.order_by(Purchases.date, Purchases.id).all()
     return_json = convert_relation_to_json(all_purchases)
 
     return jsonify(return_json), 200
@@ -113,7 +116,8 @@ def get_range_of_purchases():
     except ValueError as err:
         return str(err), 400
 
-    purchases_in_date_range = Purchases.query.filter(Purchases.date.between(start_date_timestamp, end_date_timestamp)).all()
+    purchases_in_date_range = Purchases.query.filter(Purchases.date.between(start_date_timestamp, end_date_timestamp)) \
+        .order_by(Purchases.date, Purchases.id).all()
     return_json = convert_relation_to_json(purchases_in_date_range)
 
     return jsonify(return_json), 200
@@ -196,10 +200,11 @@ def clear_all_purchases():
     try:
         # Use db.session.query.delete() to delete all records in the Purchases table
         db.session.query(Purchases).delete()
+        db.session.execute(text('ALTER TABLE Purchases AUTO_INCREMENT = 1'))
         db.session.commit()
 
         return 'Successfully deleted all purchase records from database.', 200
-    except SQLAlchemyError as e:
+    except Exception as e:
         db.session.rollback()
         error_msg = f"Error clearing all purchase records: {str(e)}"
         return error_msg, 500
